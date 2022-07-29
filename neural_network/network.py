@@ -69,7 +69,11 @@ class Network(object):
     N, D = X.shape
 
     # Compute the forward pass
-    scores = None
+    z1 = np.dot(X, W1) + b1
+    a1 = np.maximum(0, z1)
+    z2 = np.dot(a1, W2) + b2
+    scores = z2
+
     #############################################################################
     # TODO: Perform the forward pass, computing the class scores for the input. #
     # Store the result in the scores variable, which should be an array of      #
@@ -85,7 +89,24 @@ class Network(object):
       return scores
 
     # Compute the loss
-    loss = None
+    scores -= np.max(scores, axis=1, keepdims=True)
+
+    # def softmax(x):
+    #     z = x - np.max(x)
+    #     numerator = np.exp(z)
+    #     denominator = np.sum(numerator)
+    #     softmax = numerator / denominator
+    #
+    #     return softmax
+
+    a2 = np.exp(scores) / np.sum(np.exp(scores), axis=1, keepdims=True)
+    # prob = softmax(scores)
+    prob = a2
+
+    loss = -np.sum(np.log(prob[(range(N), y)])) / N
+    # loss = -np.sum(np.log(prob[(range(N), y)])) / N
+    loss += reg * (np.sum(W1 * W1) + np.sum(W2 * W2))
+
     #############################################################################
     # TODO: Finish the forward pass, and compute the loss. This should include  #
     # both the data loss and L2 regularization for W1 and W2. Store the result  #
@@ -97,8 +118,29 @@ class Network(object):
     #                              END OF YOUR CODE                             #
     #############################################################################
 
+    prob[(range(N), y)] -= 1  # subtract 1 from the predicted prob for the ground truth value
+    dz2 = prob / N
+
+    dw2 = np.dot(a1.T, dz2)
+    db2 = np.ones((1, a1.shape[0])).dot(dz2)
+
+    da1 = dz2.dot(W2.T)
+    dz1 = da1.copy()
+    dz1[a1 <= 0] = 0
+    dw1 = X.T.dot(dz1)
+    db1 = np.ones((1, N)).dot(dz1)
+
+    dw1 += 2 * reg * W1
+    dw2 += 2 * reg * W2
+
     # Backward pass: compute gradients
     grads = {}
+
+    grads['W1'] = dw1
+    grads['W2'] = dw2
+    grads['b1'] = db1
+    grads['b2'] = db2
+
     #############################################################################
     # TODO: Compute the backward pass, computing the derivatives of the weights #
     # and biases. Store the results in the grads dictionary. For example,       #
@@ -141,8 +183,14 @@ class Network(object):
     val_acc_history = []
 
     for it in range(num_iters):
-      X_batch = None
-      y_batch = None
+
+      try:
+        idx = np.random.choice(len(X), 128,  replace=False)
+      except:
+        idx = np.random.choice(np.arange(len(X)), len(X) // 3, replace=False)
+
+      X_batch = X[idx, :]
+      y_batch = y[idx]
 
       #########################################################################
       # TODO: Create a random minibatch of training data and labels, storing  #
@@ -155,6 +203,12 @@ class Network(object):
 
       # Compute loss and gradients using the current minibatch
       loss, grads = self.loss(X_batch, y=y_batch, reg=reg)
+
+      self.params['W1'] = self.params['W1'] - learning_rate * grads['W1']
+      self.params['b1'] = self.params['b1'] - learning_rate * grads['b1']
+      self.params['W2'] = self.params['W2'] - learning_rate * grads['W2']
+      self.params['b2'] = self.params['b2'] - learning_rate * grads['b2']
+
       loss_history.append(loss)
 
       #########################################################################
@@ -203,7 +257,18 @@ class Network(object):
       the elements of X. For all i, y_pred[i] = c means that X[i] is predicted
       to have class c, where 0 <= c < C.
     """
-    y_pred = None
+    scores = self.loss(X)
+    y_pred = np.argmax(scores, axis=-1)
+    # y_pred = np.max(scores, axis=1, keepdims=True)
+    #y_pred = np.argmax(scores)
+    # print('*'*30)
+    # print(X)
+    # print('*' * 30)
+    # print(scores)
+    # print('*' * 30)
+    # print(y_pred)
+    # raise ValueError()
+    #y_pred = scores
 
     ###########################################################################
     # TODO: Implement this function; it should be VERY simple!                #
